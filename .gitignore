@@ -1,0 +1,31 @@
+# Segredos e ambiente — NUNCA versionar
+.env
+*.env
+!.env.example
+
+# Certificados
+certs/*.key
+certs/*.crt
+certs/*.pem
+
+# Dados / relatórios (podem conter resultados reais de scan)
+data/*
+!data/.gitkeep
+feed*.json
+*.xml
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Banco local
+*.db
+*.sqlite
+
+# SO / editor
+.DS_Store
+.idea/
+.vscode/

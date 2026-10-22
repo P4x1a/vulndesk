@@ -1,0 +1,90 @@
+# Plataforma de Gestão de Vulnerabilidades — Fase 2
+#
+#   db       → PostgreSQL (dados da plataforma: ações, tratativas, histórico)
+#   importer → importa do OpenVAS (GMP) e grava no banco
+#   api      → API + portal (login das equipes, edição, dashboard)
+#
+# O Greenbone expõe o GMP pelo socket do gvmd; só o importer monta esse volume.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: vuln-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER:-vuln}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:?defina no .env}
+      - POSTGRES_DB=${POSTGRES_DB:-vuln}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-vuln}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  importer:
+    build: .
+    image: vuln-platform:2.0
+    container_name: vuln-importer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-vuln}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vuln}
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - gvmd_socket:/run/gvmd
+
+  api:
+    build: .
+    image: vuln-platform:2.0
+    container_name: vuln-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-vuln}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vuln}
+    # HTTPS direto (uvicorn com TLS) na porta 8443 — não conflita com o GSA do
+    # Greenbone, que usa a 443 na mesma máquina.
+    command: ["python", "-m", "uvicorn", "api.main:app", "--host", "0.0.0.0", "--port", "8443",
+              "--ssl-keyfile", "/certs/portal.key", "--ssl-certfile", "/certs/portal.crt"]
+    volumes:
+      - ./config:/app/config:ro
+      - ./web:/app/web:ro
+      - ./certs:/certs:ro
+    ports:
+      # Para as equipes acessarem, aponte WEB_BIND para o IP de gerência do
+      # servidor (ex.: 10.20.0.10). O GSA do Greenbone segue na 443.
+      - "${WEB_BIND:-127.0.0.1}:8443:8443"
+
+  # Notificações no Microsoft Teams (Fase 4): checa SLA no intervalo e envia o
+  # resumo diário por equipe. Não monta o socket do gvmd (não fala com o OpenVAS).
+  notifier:
+    build: .
+    image: vuln-platform:2.0
+    container_name: vuln-notifier
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      - CONFIG_PATH=/app/config/config.yaml
+      - DATABASE_URL=postgresql+psycopg://${POSTGRES_USER:-vuln}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-vuln}
+    command: ["python", "-m", "api.notify", "loop"]
+    volumes:
+      - ./config:/app/config:ro
+
+volumes:
+  pgdata:
+  gvmd_socket:
+    external: true
+    name: ${GVMD_SOCKET_VOLUME:-greenbone-community-edition_gvmd_socket_vol}

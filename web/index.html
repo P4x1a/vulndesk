@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Painel de Vulnerabilidades</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Poppins:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: cabeçalho fixo + faixa de KPIs + grade de gráficos + tabela de tratativas. */
+:root {
+  --bg: #eef3f7; --surface: #ffffff; --surface-2: #e7eff5; --line: #d6e1ea;
+  --fg: #0f2230; --muted: #5a6b78; --accent: #0e6ba8; --accent2: #2bace3; --accent-fg: #ffffff; --accent-soft: #e3f2fb;
+  --ink: #0b3a5c; --cta: #f39200; --cta-fg: #ffffff; --radius: 14px;
+  --sev-c: #d03b3b; --sev-h: #ec835a; --sev-m: #eda100; --sev-l: #6c8fb8;
+  --ok: #0c8a0c; --info: #2a78d6; --warn: #ec8a3c; --crit: #d03b3b; --pend: #8a949e;
+  --f-display: "Poppins", system-ui, sans-serif;
+  --f-body: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0b1824; --surface: #102232; --surface-2: #162d40; --line: #223d52;
+  --fg: #e7eff5; --muted: #8fa6b6; --accent: #2aa9e0; --accent2: #5cc6f0; --accent-fg: #06202e; --accent-soft: #0f3550;
+  --ink: #bfe0f3; --cta: #f7a834; --cta-fg: #06202e;
+  --sev-l: #7fa2cf; --info: #3987e5; --pend: #76838e; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0b1824; --surface: #102232; --surface-2: #162d40; --line: #223d52;
+  --fg: #e7eff5; --muted: #8fa6b6; --accent: #2aa9e0; --accent2: #5cc6f0; --accent-fg: #06202e; --accent-soft: #0f3550;
+  --ink: #bfe0f3; --cta: #f7a834; --cta-fg: #06202e;
+  --sev-l: #7fa2cf; --info: #3987e5; --pend: #76838e; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--fg); font: 14px/1.5 var(--f-body); }
+.wrap { max-width: 1320px; margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+h1,h2,h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+.muted { color: var(--muted); }
+.mono { font-family: var(--f-mono); }
+button, select, input { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.top { background: var(--surface); border-bottom: 1px solid var(--line); position: sticky; top: env(safe-area-inset-top, 0px); z-index: 6; }
+.top .wrap { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; padding-block: 12px; }
+.brand { display: flex; align-items: center; gap: 12px; margin-right: auto; min-width: 0; }
+.logo { height: 30px; width: auto; max-width: 150px; object-fit: contain; background: #fff; padding: 3px 7px; border-radius: 6px; border: 1px solid var(--line); }
+.brand h1 { font-size: 19px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.brand .sub { font-size: 12.5px; color: var(--muted); }
+.badge { font-size: 11px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--accent); background: var(--accent-soft); border-radius: 999px; padding: 3px 9px; }
+.asof { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+main { padding-block: 20px 56px; }
+.note { font-size: 12.5px; color: var(--muted); background: var(--surface); border: 1px solid var(--line); border-left: 3px solid var(--accent); border-radius: 6px; padding: 8px 12px; margin-bottom: 18px; max-width: none; }
+
+.kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
+.kpi { background: var(--surface); padding: 12px 14px; display: grid; gap: 3px; align-content: start; }
+.kpi .l { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); }
+.kpi .v { font-family: var(--f-display); font-size: 30px; font-weight: 600; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.kpi .s { font-size: 12px; color: var(--muted); }
+.kpi .v.good { color: var(--ok); } .kpi .v.bad { color: var(--crit); } .kpi .v.warn { color: var(--warn); }
+@media (max-width: 1000px) { .kpis { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 560px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+
+.grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 18px; align-items: start; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; min-width: 0; display: grid; gap: 10px; align-content: start; }
+.card h3 { font-size: 15px; font-weight: 600; }
+.card .sub { color: var(--muted); font-size: 12.5px; margin-top: -6px; }
+svg.chart { width: 100%; height: auto; display: block; overflow: visible; }
+svg.chart text { fill: var(--muted); font-family: var(--f-body); font-size: 12px; }
+svg.chart text.lbl { fill: var(--fg); }
+svg.chart text.tot { fill: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+svg.chart line.grid { stroke: var(--line); stroke-width: 1; }
+svg.chart rect.seg, svg.chart circle.pt { cursor: default; }
+svg.chart rect.seg:hover { opacity: .82; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 15px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+.legend b { color: var(--fg); font-variant-numeric: tabular-nums; }
+.tip { position: fixed; pointer-events: none; background: var(--fg); color: var(--bg); padding: 6px 9px; border-radius: 5px; font-size: 12.5px; z-index: 50; max-width: 300px; }
+
+.c-crit{background:var(--sev-c)} .c-high{background:var(--sev-h)} .c-med{background:var(--sev-m)} .c-low{background:var(--sev-l)}
+.f-crit{fill:var(--sev-c)} .f-high{fill:var(--sev-h)} .f-med{fill:var(--sev-m)} .f-low{fill:var(--sev-l)}
+.c-ok{background:var(--ok)} .c-info{background:var(--info)} .c-warn{background:var(--warn)} .c-venc{background:var(--crit)}
+.f-ok{fill:var(--ok)} .f-info{fill:var(--info)} .f-warn{fill:var(--warn)} .f-venc{fill:var(--crit)}
+
+/* reincidências */
+.reinc-list { display: grid; gap: 6px; }
+.reinc-list .r { display: flex; gap: 10px; align-items: baseline; font-size: 13px; padding: 6px 0; border-top: 1px solid var(--line); }
+.reinc-list .r:first-child { border-top: 0; }
+.reinc-list .r .n { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+
+/* tabela */
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+.panel-head { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: 14px 16px; border-bottom: 1px solid var(--line); }
+.filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.filters input[type=search], .filters select { border: 1px solid var(--line); background: var(--bg); border-radius: 6px; padding: 6px 10px; }
+.filters input[type=search] { width: min(260px, 60vw); }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 6px 13px; cursor: pointer; font-weight: 500; font-size: 13px; transition: border-color .15s, background .15s, color .15s; }
+.btn:hover { border-color: var(--accent); }
+.btn.cta { background: var(--cta); color: var(--cta-fg); border-color: var(--cta); font-weight: 600; }
+.btn.cta:hover { filter: brightness(.95); border-color: var(--cta); }
+.tbl-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th { text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); background: var(--surface-2); padding: 9px 12px; white-space: nowrap; position: sticky; top: 0; }
+th.sortable { cursor: pointer; } th.sortable:hover { color: var(--fg); }
+td { padding: 9px 12px; border-top: 1px solid var(--line); vertical-align: top; }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+tr td:first-child { border-left: 3px solid transparent; }
+tr.Critical td:first-child { border-left-color: var(--sev-c); } tr.High td:first-child { border-left-color: var(--sev-h); }
+tr.Medium td:first-child { border-left-color: var(--sev-m); } tr.Low td:first-child { border-left-color: var(--sev-l); }
+.acttitle { font-weight: 600; max-width: 42ch; }
+.tagr { font-size: 10.5px; font-weight: 600; color: var(--accent); background: var(--accent-soft); border-radius: 4px; padding: 1px 5px; margin-left: 6px; white-space: nowrap; }
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 600; white-space: nowrap; border-radius: 999px; padding: 2px 9px; border: 1px solid var(--line); }
+.pill i { width: 7px; height: 7px; border-radius: 50%; }
+.sla-No.prazo{}
+.sla.ok i{background:var(--ok)} .sla.info i{background:var(--info)} .sla.warn i{background:var(--warn)} .sla.venc i{background:var(--crit)}
+td select.st { border: 1px solid var(--line); background: var(--bg); border-radius: 5px; padding: 3px 7px; font-weight: 500; }
+/* linha expansível + painel de detalhe */
+tr[data-pk] { cursor: pointer; }
+tr[data-pk]:hover > td { background: var(--surface-2); }
+.caret { display: inline-block; width: 11px; color: var(--muted); font-size: 10px; transition: transform .15s; }
+tr.open .caret { transform: rotate(90deg); color: var(--accent); }
+.detailrow > td { padding: 0; border-top: 0; background: var(--bg); }
+.detailbox { background: var(--surface-2); border-left: 3px solid var(--accent); padding: 16px 18px; display: grid; gap: 14px; }
+.dsec .dh { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 600; margin-bottom: 4px; }
+.dsec .db { font-size: 13px; line-height: 1.6; color: var(--fg); }
+.dgrid { display: grid; grid-template-columns: 2fr 1fr; gap: 18px; }
+@media (max-width: 720px) { .dgrid { grid-template-columns: 1fr; } }
+.hostchip { display: inline-block; font-family: var(--f-mono); font-size: 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; margin: 2px 5px 2px 0; }
+.hostchip .pt { color: var(--muted); }
+.cvechip { display: inline-block; font-family: var(--f-mono); font-size: 12px; color: var(--accent); background: var(--accent-soft); border-radius: 6px; padding: 2px 8px; margin: 2px 5px 2px 0; text-decoration: none; }
+.cvechip:hover { text-decoration: underline; }
+.nvt { font-size: 12px; color: var(--muted); padding: 1px 0; font-family: var(--f-mono); }
+.toast { position: fixed; bottom: calc(16px + env(safe-area-inset-bottom,0px)); left: 50%; transform: translateX(-50%); background: var(--fg); color: var(--bg); padding: 8px 14px; border-radius: 6px; font-size: 13px; z-index: 60; }
+.foot { margin-top: 20px; font-size: 12px; color: var(--muted); }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* portal (Fase 2) */
+.userchip { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.userchip .who { font-weight: 600; }
+.userchip .role { font-size: 11px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
+.overlay { position: fixed; inset: 0; background: rgba(10,16,22,.72); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+.overlay[hidden] { display: none; }
+.loginbox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 24px; width: min(380px, 100%); display: grid; gap: 14px; }
+.loginbox h2 { font-family: var(--f-display); font-size: 20px; }
+.loginbox .logo2 { height: 34px; width: auto; object-fit: contain; }
+.loginbox label { display: grid; gap: 4px; font-size: 12.5px; color: var(--muted); }
+.loginbox label[hidden] { display: none; }
+.loginbox select, .loginbox input { border: 1px solid var(--line); background: var(--bg); color: var(--fg); border-radius: 7px; padding: 9px 11px; font-size: 14px; }
+.loginbox .err { color: var(--crit); font-size: 12.5px; min-height: 16px; }
+.btn.primary { background: var(--cta); color: var(--cta-fg); border-color: var(--cta); font-weight: 600; }
+.btn.primary:hover { filter: brightness(.95); border-color: var(--cta); }
+.loginbox .brandbar { display: flex; align-items: center; gap: 10px; }
+.loginbox .brandbar .logo2 { height: 30px; }
+td input.edit { border: 1px solid transparent; background: transparent; border-radius: 5px; padding: 3px 6px; width: 100%; min-width: 90px; color: var(--fg); }
+td input.edit:hover:not(:disabled) { border-color: var(--line); }
+td input.edit:focus { border-color: var(--accent); background: var(--bg); }
+td input.edit:disabled, td select.st:disabled { opacity: .55; cursor: not-allowed; }
+.hbtn { border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 3px 8px; cursor: pointer; font-size: 12px; }
+.hbtn:hover { border-color: var(--accent); }
+.modal { position: fixed; inset: 0; background: rgba(10,16,22,.6); display: flex; align-items: center; justify-content: center; z-index: 90; padding: 16px; }
+.modal[hidden] { display: none; }
+.modalbox { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px 20px; width: min(560px, 100%); max-height: 80vh; overflow: auto; display: grid; gap: 10px; }
+.modalbox h3 { font-family: var(--f-display); font-size: 16px; }
+.hist { display: grid; gap: 8px; }
+.hist .h { border-top: 1px solid var(--line); padding-top: 8px; font-size: 13px; }
+.hist .h:first-child { border-top: 0; }
+.hist .when { color: var(--muted); font-size: 12px; }
+.hist .chg { margin-top: 2px; }
+.ctrls { display: flex; align-items: center; gap: 8px; }
+.hsel { border: 1px solid var(--line); background: var(--surface); color: var(--fg); border-radius: 6px; padding: 5px 9px; font-size: 13px; max-width: 240px; }
+/* ---------- visão executiva (gerência) ---------- */
+#execView { gap: 18px; }
+.exec-head h2 { font-size: 23px; font-weight: 700; color: var(--ink); letter-spacing: -.01em; }
+.exec-head .sub { color: var(--muted); font-size: 13.5px; margin-top: 3px; }
+.exec-hero { border-radius: var(--radius); padding: 22px 24px; display: flex; gap: 20px; align-items: center; color: #fff; }
+.exec-hero .dot { flex: none; width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.22); display: grid; place-items: center; font-size: 28px; line-height: 1; }
+.exec-hero .verdict { font-family: var(--f-display); font-size: 22px; font-weight: 700; line-height: 1.15; }
+.exec-hero .explain { font-size: 14px; opacity: .96; margin-top: 4px; max-width: 78ch; }
+.risk-red { background: linear-gradient(120deg, #c0392b, #e0553f); }
+.risk-amber { background: linear-gradient(120deg, #d9821a, #f0a63a); }
+.risk-green { background: linear-gradient(120deg, #15804a, #27a65c); }
+
+.exec-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+@media (max-width: 760px){ .exec-tiles { grid-template-columns: repeat(2,1fr); } }
+.etile { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px 18px; display: grid; gap: 4px; border-top: 4px solid var(--accent); }
+.etile.red { border-top-color: var(--sev-c); } .etile.amber { border-top-color: var(--warn); } .etile.green { border-top-color: var(--ok); }
+.etile .n { font-family: var(--f-display); font-size: 36px; font-weight: 700; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; }
+.etile .k { font-size: 13px; font-weight: 600; color: var(--fg); }
+.etile .d { font-size: 12px; color: var(--muted); }
+
+.exec-two { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+@media (max-width: 820px){ .exec-two { grid-template-columns: 1fr; } }
+.excard { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; display: grid; gap: 12px; align-content: start; }
+.excard h3 { font-size: 15.5px; font-weight: 600; color: var(--ink); }
+.excard .cap { font-size: 12.5px; color: var(--muted); margin-top: -8px; }
+.donut-wrap { display: flex; gap: 22px; align-items: center; flex-wrap: wrap; }
+.donut-wrap svg { flex: none; }
+.dlegend { display: grid; gap: 9px; font-size: 13px; min-width: 150px; flex: 1; }
+.dlegend .row { display: flex; align-items: center; gap: 9px; }
+.dlegend i { width: 11px; height: 11px; border-radius: 3px; flex: none; }
+.dlegend b { font-variant-numeric: tabular-nums; margin-left: auto; padding-left: 14px; color: var(--ink); font-family: var(--f-display); }
+.gauge-wrap { display: grid; justify-items: center; gap: 2px; }
+.gauge-cap { font-size: 13px; color: var(--muted); text-align: center; }
+
+.ebars { display: grid; gap: 11px; }
+.ebar { display: grid; grid-template-columns: 130px 1fr auto; gap: 12px; align-items: center; font-size: 13px; }
+.ebar .lab { color: var(--fg); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ebar .track { background: var(--surface-2); border-radius: 999px; height: 16px; overflow: hidden; }
+.ebar .fill { height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent2)); min-width: 3px; }
+.ebar .val { font-family: var(--f-display); font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right; }
+
+.prio { display: grid; }
+.prio .p { display: grid; grid-template-columns: auto 1fr auto; gap: 13px; align-items: center; padding: 11px 0; border-top: 1px solid var(--line); }
+.prio .p:first-child { border-top: 0; }
+.prio .rank { width: 27px; height: 27px; border-radius: 50%; background: var(--accent-soft); color: var(--accent); display: grid; place-items: center; font-weight: 700; font-size: 13px; font-family: var(--f-display); flex: none; }
+.prio .p.crit .rank { background: var(--sev-c); color: #fff; }
+.prio .ptitle { font-weight: 500; min-width: 0; }
+.prio .ptitle .t { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.prio .pmeta { font-size: 12px; color: var(--muted); margin-top: 1px; }
+.prio .ptag { font-size: 11px; font-weight: 600; white-space: nowrap; padding: 3px 10px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.prio .ptag.venc { color: var(--crit); border-color: var(--crit); }
+.prio .ptag.risco { color: var(--warn); border-color: var(--warn); }
+.trendline { font-size: 14px; color: var(--fg); background: var(--accent-soft); border-radius: 10px; padding: 12px 15px; line-height: 1.5; }
+.trendline b { color: var(--ink); }
+
+.exec-only { display: none; }
+body.exec .op-only { display: none; }
+body.exec .exec-only { display: grid; }
+body.exec #viewToggle { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }
+@media print {
+  .top .top-actions, #ctrls, #userchip, .filters, .op-only, #tip, #toast, #loginOverlay, #histModal { display: none !important; }
+  .top { position: static; }
+  body { background: #fff; }
+  .card, .kpis, .panel { break-inside: avoid; }
+  .exec-only { display: grid !important; }
+}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="brand">
+      <img class="logo" id="logo" alt="VulnDesk">
+      <div><h1>Painel de Vulnerabilidades</h1><div class="sub" id="sub"></div></div>
+    </div>
+    <span class="ctrls" id="ctrls" hidden><select id="scanSel" class="hsel" aria-label="Scan"></select><button class="btn" id="viewToggle" type="button">Visão executiva</button><button class="btn" id="printBtn" type="button" hidden>Imprimir</button></span>
+    <span class="asof" id="asof"></span>
+    <span class="userchip" id="userchip" hidden><span class="who" id="whoName"></span><span class="role" id="whoRole"></span><button class="btn" id="logout" type="button">Sair</button></span>
+  </div>
+</header>
+<main class="wrap">
+  <div class="note" id="note"></div>
+  <div class="op-only">
+    <div class="kpis" id="kpis"></div>
+    <div class="grid">
+      <div class="card"><h3>Ações abertas por criticidade</h3><div class="sub">Exclui itens já corrigidos</div><div id="chSev"></div></div>
+      <div class="card"><h3>Ações por área responsável</h3><div class="sub">Abertas, empilhadas por criticidade</div><div id="chArea"></div></div>
+      <div class="card"><h3>Cumprimento de SLA</h3><div class="sub">Situação do prazo por criticidade</div><div id="chSla"></div></div>
+      <div class="card"><h3>Evolução das correções</h3><div class="sub">Backlog aberto x corrigidas acumuladas</div><div id="chEvo"></div></div>
+    </div>
+    <div class="grid">
+      <div class="card" style="grid-column:1/-1"><h3>Reincidências</h3><div class="sub">Vulnerabilidades que já haviam aparecido em scan anterior</div><div id="reinc" class="reinc-list"></div></div>
+    </div>
+  </div>
+  <div class="exec-only" id="execView"></div>
+  <div class="panel op-only">
+    <div class="panel-head">
+      <div><h3 style="font-family:var(--f-display);font-size:16px;font-weight:600">Acompanhamento das tratativas</h3><div class="muted" style="font-size:12.5px">Edite status, responsável e observação da sua equipe; fica salvo no banco, com histórico. Substitui o controle em Excel.</div></div>
+      <div class="filters">
+        <input type="search" id="q" placeholder="Buscar ação, host, CVE…">
+        <select id="fSev"><option value="">Toda criticidade</option></select>
+        <select id="fArea"><option value="">Toda área</option></select>
+        <select id="fStatus"><option value="">Todo status</option></select>
+        <button class="btn" id="csv" type="button">Exportar CSV</button>
+      </div>
+    </div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>
+        <th class="sortable" data-k="id">ID</th><th>Criticidade</th><th class="sortable" data-k="titulo">Ação</th>
+        <th>Área</th><th>Responsável</th><th class="sortable" data-k="prazo">Prazo</th><th>SLA</th><th>Status</th>
+      </tr></thead>
+      <tbody id="rows"></tbody>
+    </table></div>
+  </div>
+  <div class="foot" id="foot"></div>
+</main>
+<div class="tip" id="tip" hidden></div>
+<div class="toast" id="toast" hidden></div>
+
+<div class="overlay" id="loginOverlay" hidden>
+  <form class="loginbox" id="loginForm">
+    <div class="brandbar"><img class="logo2" id="logo2" alt="VulnDesk"></div>
+    <h2>Portal de Vulnerabilidades</h2>
+    <label id="userField" hidden>Usuário de rede<input id="loginUser" autocomplete="username" placeholder="seu.usuario"></label>
+    <label id="teamField">Equipe<select id="loginTeam"></select></label>
+    <label>Senha<input type="password" id="loginPass" autocomplete="current-password" required></label>
+    <div class="err" id="loginErr"></div>
+    <button class="btn primary" type="submit">Entrar</button>
+    <div class="muted" id="loginHint" style="font-size:11.5px;text-align:center"></div>
+  </form>
+</div>
+
+<div class="modal" id="histModal" hidden>
+  <div class="modalbox">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px">
+      <h3 id="histTitle">Histórico</h3>
+      <button class="btn" type="button" id="histClose">Fechar</button>
+    </div>
+    <div class="hist" id="histBody"></div>
+  </div>
+</div>
+
+<script id="logodata" type="text/plain">data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAxNzIgNDAiPjxkZWZzPjxsaW5lYXJHcmFkaWVudCBpZD0iZyIgeDE9IjAiIHkxPSIwIiB4Mj0iMSIgeTI9IjEiPjxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iIzBlNmJhOCIvPjxzdG9wIG9mZnNldD0iMSIgc3RvcC1jb2xvcj0iIzJiYWNlMyIvPjwvbGluZWFyR3JhZGllbnQ+PC9kZWZzPjxwYXRoIGQ9Ik0yMCA0IEwzNCA5IFYyMSBDMzQgMzAgMjcgMzUgMjAgMzcgQzEzIDM1IDYgMzAgNiAyMSBWOSBaIiBmaWxsPSJ1cmwoI2cpIi8+PHBhdGggZD0iTTE0IDIwIGw0IDQgbDggLTkiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZiIgc3Ryb2tlLXdpZHRoPSIyLjYiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgc3Ryb2tlLWxpbmVqb2luPSJyb3VuZCIvPjx0ZXh0IHg9IjQ0IiB5PSIyNiIgZm9udC1mYW1pbHk9IlBvcHBpbnMsU2Vnb2UgVUksc2Fucy1zZXJpZiIgZm9udC1zaXplPSIxOSIgZm9udC13ZWlnaHQ9IjcwMCIgZmlsbD0iIzBlNmJhOCI+VnVsbjx0c3BhbiBmaWxsPSIjMmJhY2UzIj5EZXNrPC90c3Bhbj48L3RleHQ+PC9zdmc+</script>
+<script>
+"use strict";
+let DATA, HOJE, abertas = [];
+const LOGO = document.getElementById('logodata').textContent.trim();
+const SEV = ['Critical','High','Medium','Low'];
+const SEV_PT = {Critical:'Crítica',High:'Alta',Medium:'Média',Low:'Baixa'};
+const SEV_CLS = {Critical:'crit',High:'high',Medium:'med',Low:'low'};
+const STATUSES = ['Pendente','Em andamento','Corrigido','Risco aceito','Falso positivo'];
+const $ = (s,el=document)=>el.querySelector(s);
+const esc = s => String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmtN = n => Number(n).toLocaleString('pt-BR');
+const parseD = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const fmtD = s => { const d=parseD(s); return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`; };
+// sessão (login por equipe)
+let TOKEN = null, ME = null;
+try { TOKEN = localStorage.getItem('vp-token'); } catch(e){}
+async function api(path, opts={}){
+  const h = Object.assign({'Content-Type':'application/json'}, opts.headers||{});
+  if (TOKEN) h['Authorization'] = 'Bearer '+TOKEN;
+  const r = await fetch(path, Object.assign({}, opts, {headers:h}));
+  if (r.status===401){ logout(); throw new Error('Sessão expirada. Entre novamente.'); }
+  if (!r.ok){ let m='erro'; try{ m=(await r.json()).detail||m; }catch(_){ } throw new Error(m); }
+  return r.status===204 ? null : r.json();
+}
+function canEdit(a){ return !!ME && (ME.role==='admin' || (ME.teams||[ME.team]).includes(a.team)); }
+function recalcSla(a){
+  if (a.status==='Corrigido') return 'Corrigido';
+  if (a.status==='Falso positivo'||a.status==='Risco aceito') return a.status;
+  if (!a.prazo) return 'No prazo';
+  const rest = Math.round((parseD(a.prazo)-HOJE)/864e5);
+  if (rest<0) return 'Vencido'; if (rest<=Math.max(1,Math.round(a.sla_dias*0.25))) return 'Em risco'; return 'No prazo';
+}
+function normalize(){
+  DATA.acoes.forEach(a=>{
+    if (a.sla_dias==null) a.sla_dias = ({Critical:7,High:30,Medium:90,Low:180})[a.threat]||90;
+    a.sla_status = recalcSla(a);
+  });
+}
+
+// ---------- KPIs ----------
+function kpis(){
+  const critAlt = abertas.filter(a => a.threat==='Critical'||a.threat==='High').length;
+  const comPrazo = abertas.filter(a => ['No prazo','Em risco','Vencido'].includes(a.sla_status));
+  const noPrazo = comPrazo.filter(a => a.sla_status==='No prazo').length;
+  const pctPrazo = comPrazo.length ? Math.round(noPrazo/comPrazo.length*100) : 100;
+  const vencidas = abertas.filter(a => a.sla_status==='Vencido').length;
+  const reinc = DATA.acoes.filter(a => a.reincidente).length;
+  const mttrs = DATA.acoes.filter(a => a.mttr!=null).map(a=>a.mttr);
+  const mttr = mttrs.length ? Math.round(mttrs.reduce((x,y)=>x+y,0)/mttrs.length)+' d' : '—';
+  const items = [
+    ['Ações abertas', fmtN(abertas.length), `${DATA.acoes.length} no total`, ''],
+    ['Críticas + altas', fmtN(critAlt), 'abertas', critAlt?'bad':'good'],
+    ['% no prazo', pctPrazo+'%', `${noPrazo} de ${comPrazo.length} com SLA`, pctPrazo>=80?'good':pctPrazo>=60?'warn':'bad'],
+    ['Vencidas', fmtN(vencidas), 'fora do SLA', vencidas?'bad':'good'],
+    ['Reincidências', fmtN(reinc), 'já vistas antes', reinc?'warn':'good'],
+    ['MTTR médio', mttr, mttrs.length?'tempo até corrigir':'requer histórico', '']
+  ];
+  $('#kpis').innerHTML = items.map(([l,v,s,c])=>`<div class="kpi"><span class="l">${l}</span><span class="v ${c}">${v}</span><span class="s">${s}</span></div>`).join('');
+}
+
+// ---------- gráficos ----------
+const tip = $('#tip');
+function bindTip(root){
+  root.addEventListener('pointermove',e=>{const t=e.target.closest('[data-tip]');if(!t){tip.hidden=true;return;}tip.textContent=t.dataset.tip;tip.hidden=false;const x=Math.min(e.clientX+14,innerWidth-tip.offsetWidth-8);tip.style.left=x+'px';tip.style.top=(e.clientY+16)+'px';});
+  root.addEventListener('pointerleave',()=>tip.hidden=true);
+}
+function niceMax(m,n=4){const r=Math.max(1,m)/n,p=Math.pow(10,Math.floor(Math.log10(r))),s=r/p,st=(s<=1?1:s<=2?2:s<=5?5:10)*p;return Math.ceil(Math.max(1,m)/st)*st;}
+const tot = o => SEV.reduce((s,k)=>s+(o[k]||0),0);
+
+function hbars(rows, {unit='ações'}={}){
+  const W=640,bh=20,gap=12,top=6,axisH=22,right=40;
+  const labelW=Math.round(Math.min(26,Math.max(5,...rows.map(r=>r.label.length)))*6.7+14);
+  const max=niceMax(Math.max(1,...rows.map(tot))),pw=W-labelW-right,sx=v=>labelW+v/max*pw;
+  const H=top+rows.length*(bh+gap)-gap+axisH;
+  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Barras por criticidade">`;
+  const step=max/4;
+  for(let v=0;v<=max+1e-9;v+=step){const x=sx(v);s+=`<line class="grid" x1="${x}" x2="${x}" y1="${top-4}" y2="${H-axisH+2}"/><text x="${x}" y="${H-6}" text-anchor="middle">${fmtN(v)}</text>`;}
+  rows.forEach((r,i)=>{const y=top+i*(bh+gap);let lbl=r.label;if(lbl.length>26)lbl=lbl.slice(0,25)+'…';
+    s+=`<text class="lbl" x="${labelW-10}" y="${y+bh/2+4}" text-anchor="end">${esc(lbl)}</text>`;let x=labelW;
+    SEV.forEach(k=>{const v=r[k]||0;if(!v)return;const w=Math.max(v/max*pw,2);s+=`<rect class="seg f-${SEV_CLS[k]}" x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${bh}" rx="2" data-tip="${esc(r.label)} · ${SEV_PT[k]}: ${v} ${unit}"/>`;x+=w;});
+    s+=`<text class="tot" x="${x+6}" y="${y+bh/2+4}">${fmtN(tot(r))}</text>`;});
+  return s+'</svg>';
+}
+function slaBars(rows){
+  const order=[['No prazo','info'],['Em risco','warn'],['Vencido','venc'],['Corrigido','ok']];
+  const W=640,bh=20,gap=12,top=6,axisH=22,right=40,labelW=70;
+  const max=niceMax(Math.max(1,...rows.map(r=>order.reduce((s,[k])=>s+(r[k]||0),0)))),pw=W-labelW-right,H=top+rows.length*(bh+gap)-gap+axisH;
+  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Cumprimento de SLA por criticidade">`;
+  const step=max/4;for(let v=0;v<=max+1e-9;v+=step){const x=labelW+v/max*pw;s+=`<line class="grid" x1="${x}" x2="${x}" y1="${top-4}" y2="${H-axisH+2}"/><text x="${x}" y="${H-6}" text-anchor="middle">${fmtN(v)}</text>`;}
+  rows.forEach((r,i)=>{const y=top+i*(bh+gap);s+=`<text class="lbl" x="${labelW-10}" y="${y+bh/2+4}" text-anchor="end">${esc(r.label)}</text>`;let x=labelW;
+    order.forEach(([k,c])=>{const v=r[k]||0;if(!v)return;const w=Math.max(v/max*pw,2);s+=`<rect class="seg f-${c}" x="${x.toFixed(1)}" y="${y}" width="${w.toFixed(1)}" height="${bh}" rx="2" data-tip="${esc(r.label)} · ${k}: ${v}"/>`;x+=w;});});
+  return s+'</svg>';
+}
+function lineChart(series){
+  const W=640,H=230,padL=34,padR=14,padT=12,padB=40;
+  const n=series.labels.length, maxV=niceMax(Math.max(...series.lines.flatMap(l=>l.vals)));
+  const X=i=>padL+(n<=1?0:i/(n-1)*(W-padL-padR)), Y=v=>padT+(1-v/maxV)*(H-padT-padB);
+  let s=`<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="Evolução das correções">`;
+  const step=maxV/4;for(let v=0;v<=maxV+1e-9;v+=step){const y=Y(v);s+=`<line class="grid" x1="${padL}" x2="${W-padR}" y1="${y}" y2="${y}"/><text x="${padL-6}" y="${y+4}" text-anchor="end">${fmtN(v)}</text>`;}
+  series.labels.forEach((lb,i)=>{s+=`<text x="${X(i)}" y="${H-padB+16}" text-anchor="middle" font-size="11">${esc(lb)}</text>`;});
+  series.lines.forEach(l=>{const d=l.vals.map((v,i)=>`${i?'L':'M'}${X(i).toFixed(1)} ${Y(v).toFixed(1)}`).join(' ');
+    s+=`<path d="${d}" fill="none" stroke="${l.color}" stroke-width="2"/>`;
+    l.vals.forEach((v,i)=>{s+=`<circle class="pt" cx="${X(i).toFixed(1)}" cy="${Y(v).toFixed(1)}" r="3.5" fill="${l.color}" data-tip="${esc(l.name)} · ${esc(series.labels[i])}: ${v}"/>`;});});
+  return s+'</svg>';
+}
+function sevLegend(){const by={};SEV.forEach(k=>by[k]=abertas.filter(a=>a.threat===k).length);return `<div class="legend">${SEV.map(k=>`<span><i class="c-${SEV_CLS[k]}"></i>${SEV_PT[k]} <b>${by[k]}</b></span>`).join('')}</div>`;}
+
+function charts(){
+  // por criticidade
+  const bySev=SEV.map(k=>({label:SEV_PT[k],[k]:abertas.filter(a=>a.threat===k).length}));
+  $('#chSev').innerHTML=hbars(bySev)+sevLegend();
+  // por área
+  const areas=[...new Set(DATA.acoes.map(a=>a.teamNome))].map(nome=>{const o={label:nome};SEV.forEach(k=>o[k]=abertas.filter(a=>a.teamNome===nome&&a.threat===k).length);return o;}).filter(o=>tot(o)).sort((a,b)=>tot(b)-tot(a));
+  $('#chArea').innerHTML=hbars(areas)+sevLegend();
+  // SLA
+  const slaRows=SEV.map(k=>{const o={label:SEV_PT[k]};abertas.filter(a=>a.threat===k).forEach(a=>o[a.sla_status]=(o[a.sla_status]||0)+1);return o;});
+  $('#chSla').innerHTML=slaBars(slaRows)+`<div class="legend"><span><i class="c-info"></i>No prazo</span><span><i class="c-warn"></i>Em risco</span><span><i class="c-venc"></i>Vencido</span></div>`;
+  // evolução
+  $('#chEvo').innerHTML=lineChart({
+    labels:(DATA.evolucao||[]).map(w=>fmtD(w.semana).slice(0,5)),
+    lines:[{name:'Backlog aberto',color:'var(--sev-c)',vals:(DATA.evolucao||[]).map(w=>w.abertas)},
+           {name:'Críticas + altas',color:'var(--sev-h)',vals:(DATA.evolucao||[]).map(w=>(w.criticas||0)+(w.altas||0))}]
+  })+`<div class="legend"><span><i style="background:var(--sev-c)"></i>Backlog aberto</span><span><i class="c-high"></i>Críticas + altas</span></div>`;
+  ['chSev','chArea','chSla','chEvo'].forEach(id=>bindTip($('#'+id)));
+}
+
+// reincidências
+function reincidencias(){
+  const list=DATA.acoes.filter(a=>a.reincidente).sort((a,b)=>SEV.indexOf(a.threat)-SEV.indexOf(b.threat));
+  $('#reinc').innerHTML = list.length ? list.map(a=>`<div class="r"><span class="n">${a.id}</span><span class="pill"><i class="c-${SEV_CLS[a.threat]}"></i>${SEV_PT[a.threat]}</span><span style="flex:1;min-width:0">${esc(a.titulo)}</span><span class="muted" style="font-size:12px">desde ${fmtD(a.deteccao)} · ${a.teamNome}</span></div>`).join('') : '<span class="muted">Nenhuma reincidência.</span>';
+}
+
+// ---------- tabela ----------
+const F={q:'',sev:'',area:'',status:''};
+let sort={k:'id',dir:1};
+function setupFilters(){
+  $('#fSev').innerHTML='<option value="">Toda criticidade</option>'+SEV.map(k=>`<option value="${k}">${SEV_PT[k]}</option>`).join('');
+  $('#fArea').innerHTML='<option value="">Toda área</option>'+[...new Set(DATA.acoes.map(a=>a.teamNome))].map(n=>`<option>${esc(n)}</option>`).join('');
+  $('#fStatus').innerHTML='<option value="">Todo status</option>'+STATUSES.map(s=>`<option>${s}</option>`).join('');
+  $('#q').oninput=e=>{F.q=e.target.value.toLowerCase();rows();};
+  $('#fSev').onchange=e=>{F.sev=e.target.value;rows();};
+  $('#fArea').onchange=e=>{F.area=e.target.value;rows();};
+  $('#fStatus').onchange=e=>{F.status=e.target.value;rows();};
+  $('#csv').onclick=exportCsv;
+  document.querySelectorAll('th.sortable').forEach(th=>th.onclick=()=>{const k=th.dataset.k;sort.dir=sort.k===k?-sort.dir:1;sort.k=k;rows();});
+  $('#rows').onclick=e=>{
+    if(e.target.closest('input,select,button,a,.edit')) return;      // não expande ao editar
+    const tr=e.target.closest('tr[data-pk]'); if(!tr) return;
+    toggleDetail(Number(tr.dataset.pk));
+  };
+}
+const SLACLS={'No prazo':'info','Em risco':'warn','Vencido':'venc','Corrigido':'ok','Risco aceito':'info','Falso positivo':'info'};
+function filtered(){
+  let r=DATA.acoes.filter(a=>(!F.sev||a.threat===F.sev)&&(!F.area||a.teamNome===F.area)&&(!F.status||a.status===F.status)&&(!F.q||(a.id+' '+a.titulo+' '+a.teamNome+' '+(a.responsavel||'')+' '+(a.observacao||'')).toLowerCase().includes(F.q)));
+  const k=sort.k;r.sort((a,b)=>{let x=a[k]||'',y=b[k]||'';return (x<y?-1:x>y?1:0)*sort.dir;});
+  return r;
+}
+function rows(){
+  const r=filtered();
+  $('#rows').innerHTML=r.map(a=>{const ed=canEdit(a);return `<tr class="${a.threat}${expanded.has(a.pk)?' open':''}" data-pk="${a.pk}">
+    <td class="mono"><span class="caret">▶</span> ${a.id}</td>
+    <td><span class="pill"><i class="c-${SEV_CLS[a.threat]}"></i>${a.prioridade} · ${SEV_PT[a.threat]}</span></td>
+    <td><span class="acttitle">${esc(a.titulo)}</span>${DATA.meta.escopo==='todos'?` <span class="tagr">${esc(a.scanNome)}</span>`:''}${a.reincidente?'<span class="tagr">reincidente</span>':''}${a.ativo===false?'<span class="tagr" style="color:var(--ok);background:none;border:1px solid var(--line)">resolvido</span>':''}
+      <input class="edit" data-pk="${a.pk}" data-f="observacao" placeholder="observação…" value="${esc(a.observacao||'')}" ${ed?'':'disabled'}></td>
+    <td>${esc(a.teamNome)}</td>
+    <td><input class="edit" data-pk="${a.pk}" data-f="responsavel" placeholder="—" value="${esc(a.responsavel||'')}" ${ed?'':'disabled'}></td>
+    <td style="white-space:nowrap">${a.prazo?fmtD(a.prazo):'—'}</td>
+    <td><span class="pill sla ${SLACLS[a.sla_status]}"><i></i>${a.sla_status}</span></td>
+    <td style="white-space:nowrap"><select class="st" data-pk="${a.pk}" ${ed?'':'disabled'}>${STATUSES.map(s=>`<option ${s===a.status?'selected':''}>${s}</option>`).join('')}</select>
+      <button class="hbtn" type="button" data-hist="${a.pk}" title="Histórico">hist</button></td>
+  </tr>`;}).join('') || '<tr><td colspan="8" class="muted">Nenhuma ação com esses filtros.</td></tr>';
+  document.querySelectorAll('select.st').forEach(sel=>sel.onchange=()=>saveField(sel.dataset.pk,'status',sel.value,sel));
+  document.querySelectorAll('input.edit').forEach(inp=>inp.onchange=()=>saveField(inp.dataset.pk,inp.dataset.f,inp.value,inp));
+  document.querySelectorAll('[data-hist]').forEach(b=>b.onclick=()=>openHistory(b.dataset.hist));
+  expanded.forEach(pk=>{ if($(`#rows tr[data-pk="${pk}"]`)) showDetail(pk); });
+}
+// ---------- detalhe expansível da vulnerabilidade ----------
+const expanded = new Set(), detailCache = {};
+function detailHtml(d){
+  const sec=(t,c)=> c?`<div class="dsec"><div class="dh">${t}</div><div class="db">${c}</div></div>`:'';
+  const hosts=(d.hosts||[]).map(ip=>{const ps=(d.portas&&d.portas[ip])||[];return `<span class="hostchip">${esc(ip)}${ps.length?` <span class="pt">:${ps.join(', ')}</span>`:''}</span>`;}).join('')||'<span class="muted">—</span>';
+  const cves=(d.cves||[]).map(c=>`<a class="cvechip" href="https://nvd.nist.gov/vuln/detail/${encodeURIComponent(c)}" target="_blank" rel="noopener">${esc(c)}</a>`).join('')||'<span class="muted">—</span>';
+  const nvts=(d.nvts||[]).slice(0,8).map(n=>`<div class="nvt">${esc(n)}</div>`).join('');
+  return `<div class="detailbox">
+    ${sec('O que fazer', d.acao?esc(d.acao):'')}
+    ${sec('Descrição', d.resumo?esc(d.resumo):'')}
+    ${(d.solucao && d.solucao!==d.acao)?sec('Solução recomendada', esc(d.solucao)):''}
+    <div class="dgrid">
+      ${sec(`Hosts afetados (${d.hosts_count||(d.hosts||[]).length})`, hosts)}
+      ${sec('CVEs', cves)}
+    </div>
+    ${sec('Família', esc(d.familia||'—'))}
+    ${nvts?sec('Testes detectados', nvts):''}
+  </div>`;
+}
+async function showDetail(pk){
+  const tr=$(`#rows tr[data-pk="${pk}"]`); if(!tr) return;
+  tr.classList.add('open');
+  let next=tr.nextElementSibling;
+  if(next && next.dataset.detail===String(pk)) return;   // já aberto
+  const dtr=document.createElement('tr'); dtr.className='detailrow'; dtr.dataset.detail=pk;
+  dtr.innerHTML=`<td colspan="8"><div class="detailbox"><span class="muted">Carregando…</span></div></td>`;
+  tr.after(dtr);
+  try{
+    let d=detailCache[pk]; if(!d){ d=await api('/api/actions/'+pk); detailCache[pk]=d; }
+    dtr.firstElementChild.innerHTML=detailHtml(d);
+  }catch(e){ dtr.firstElementChild.innerHTML=`<div class="detailbox"><span class="muted">Erro ao carregar: ${esc(e.message)}</span></div>`; }
+}
+function hideDetail(pk){
+  const tr=$(`#rows tr[data-pk="${pk}"]`); if(tr) tr.classList.remove('open');
+  const dtr=document.querySelector(`#rows tr.detailrow[data-detail="${pk}"]`); if(dtr) dtr.remove();
+}
+function toggleDetail(pk){ if(expanded.has(pk)){expanded.delete(pk);hideDetail(pk);} else {expanded.add(pk);showDetail(pk);} }
+async function saveField(pk, field, value, el){
+  const a=DATA.acoes.find(x=>String(x.pk)===String(pk)); if(!a) return;
+  const prev=a[field];
+  try{
+    const res=await api('/api/actions/'+pk,{method:'PATCH',body:JSON.stringify({[field]:value})});
+    Object.assign(a,res.action); toast(`${a.id}: atualizado`); render();
+  }catch(e){ toast('Erro: '+e.message); if(el){ el.value=prev||''; } }
+}
+async function openHistory(pk){
+  const a=DATA.acoes.find(x=>String(x.pk)===String(pk));
+  $('#histTitle').textContent='Histórico · '+(a?a.id:'');
+  $('#histBody').innerHTML='<span class="muted">Carregando…</span>';
+  $('#histModal').hidden=false;
+  try{
+    const hs=await api('/api/actions/'+pk+'/history');
+    $('#histBody').innerHTML = hs.length ? hs.map(h=>`<div class="h"><div class="when">${esc(h.quando.replace('T',' '))} · <b>${esc(h.quem)}</b></div><div class="chg">${esc(h.campo)}: <span class="muted">${esc(h.de||'—')}</span> → <b>${esc(h.para||'—')}</b></div></div>`).join('') : '<span class="muted">Sem alterações registradas.</span>';
+  }catch(e){ $('#histBody').innerHTML='<span class="muted">Erro: '+esc(e.message)+'</span>'; }
+}
+function exportCsv(){
+  const head=['ID','Prioridade','Criticidade','Ação','Área','Responsável','Prazo','SLA','Status','Observação','Reincidente'];
+  const cell=v=>{v=String(v??'');return /[;"\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v;};
+  const L=[head.join(';')];
+  filtered().forEach(a=>L.push([a.id,a.prioridade,SEV_PT[a.threat],a.titulo,a.teamNome,a.responsavel||'',a.prazo?fmtD(a.prazo):'',a.sla_status,a.status,a.observacao||'',a.reincidente?'Sim':'Não'].map(cell).join(';')));
+  const blob=new Blob(['﻿'+L.join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const u=URL.createObjectURL(blob),x=document.createElement('a');x.href=u;x.download='tratativas-vulnerabilidades.csv';document.body.appendChild(x);x.click();x.remove();setTimeout(()=>URL.revokeObjectURL(u),4000);
+}
+function toast(m){const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(toast.h);toast.h=setTimeout(()=>t.hidden=true,2200);}
+
+// ---------- visão executiva (gráfica, para a gerência) ----------
+const SEV_VAR = {Critical:'--sev-c',High:'--sev-h',Medium:'--sev-m',Low:'--sev-l'};
+function donut(parts, total){
+  const size=150, cx=size/2, cy=size/2, R=54, sw=24, C=2*Math.PI*R;
+  let off=0, segs='';
+  parts.forEach(p=>{
+    if(!p.value) return;
+    const len=p.value/total*C;
+    segs+=`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" style="stroke:var(${p.var})" stroke-width="${sw}" stroke-dasharray="${len.toFixed(2)} ${(C-len).toFixed(2)}" stroke-dashoffset="${(-off).toFixed(2)}" transform="rotate(-90 ${cx} ${cy})"><title>${esc(p.label)}: ${p.value}</title></circle>`;
+    off+=len;
+  });
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}" role="img" aria-label="Distribuição por criticidade">
+    ${total?segs:`<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" style="stroke:var(--surface-2)" stroke-width="${sw}"/>`}
+    <text x="${cx}" y="${cy-3}" text-anchor="middle" style="fill:var(--ink);font-family:var(--f-display);font-weight:700" font-size="30">${total}</text>
+    <text x="${cx}" y="${cy+17}" text-anchor="middle" style="fill:var(--muted)" font-size="12">${total===1?'ação':'ações'}</text>
+  </svg>`;
+}
+function gauge(pct){
+  const w=170, cx=w/2, cy=90, R=66, sw=18;
+  const pt=an=>[cx+R*Math.cos(an), cy-R*Math.sin(an)];
+  const [sx,sy]=pt(Math.PI), [ex,ey]=pt(0);
+  const ang=Math.PI*(1-Math.max(0,Math.min(100,pct))/100), [vx,vy]=pt(ang);
+  const col = pct>=80?'var(--ok)':pct>=60?'var(--warn)':'var(--sev-c)';
+  return `<svg width="${w}" height="104" viewBox="0 0 ${w} 104" role="img" aria-label="Cumprimento de SLA ${pct}%">
+    <path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${R} ${R} 0 0 1 ${ex.toFixed(1)} ${ey.toFixed(1)}" fill="none" style="stroke:var(--surface-2)" stroke-width="${sw}" stroke-linecap="round"/>
+    <path d="M ${sx.toFixed(1)} ${sy.toFixed(1)} A ${R} ${R} 0 0 1 ${vx.toFixed(1)} ${vy.toFixed(1)}" fill="none" style="stroke:${col}" stroke-width="${sw}" stroke-linecap="round"/>
+    <text x="${cx}" y="${cy-8}" text-anchor="middle" style="fill:var(--ink);font-family:var(--f-display);font-weight:700" font-size="32">${pct}%</text>
+    <text x="${cx}" y="${cy+14}" text-anchor="middle" style="fill:var(--muted)" font-size="11.5">no prazo</text>
+  </svg>`;
+}
+function execRender(){
+  const A=abertas;
+  const bySev={}; SEV.forEach(k=>bySev[k]=A.filter(a=>a.threat===k).length);
+  const crit=bySev.Critical, high=bySev.High, critAlt=crit+high;
+  const comPrazo=A.filter(a=>['No prazo','Em risco','Vencido'].includes(a.sla_status));
+  const noPrazo=comPrazo.filter(a=>a.sla_status==='No prazo').length;
+  const pctPrazo=comPrazo.length?Math.round(noPrazo/comPrazo.length*100):100;
+  const vencidas=A.filter(a=>a.sla_status==='Vencido').length;
+  const emRisco=A.filter(a=>a.sla_status==='Em risco').length;
+  const reinc=DATA.acoes.filter(a=>a.reincidente).length;
+  const corrigidas=DATA.acoes.filter(a=>a.status==='Corrigido').length;
+
+  // semáforo de risco
+  let level, verdict, explain, dot;
+  if (crit>0 || vencidas>0){
+    level='red'; dot='!'; verdict='Atenção necessária';
+    const b=[]; if(vencidas) b.push(`${vencidas} ${vencidas===1?'ação vencida':'ações vencidas'}`);
+    if(crit) b.push(`${crit} ${crit===1?'vulnerabilidade crítica':'vulnerabilidades críticas'} em aberto`);
+    explain=`${b.join(' e ')}. Exige ação imediata das equipes responsáveis.`;
+  } else if (critAlt>0 || pctPrazo<80){
+    level='amber'; dot='●'; verdict='Requer acompanhamento';
+    explain=`${critAlt} ${critAlt===1?'ação de alta criticidade':'ações de alta criticidade'} em aberto e ${pctPrazo}% dentro do prazo. Nada vencido — manter o ritmo de correção.`;
+  } else {
+    level='green'; dot='✓'; verdict='Ambiente sob controle';
+    explain=`Sem ações críticas ou vencidas em aberto e ${pctPrazo}% no prazo. Risco residual baixo.`;
+  }
+
+  // tiles
+  const cls=(g,a,r)=>g?'green':a?'amber':'red';
+  const tiles=[
+    {n:fmtN(A.length), k:'Ações em aberto', d:`${fmtN(corrigidas)} já corrigidas`, c:A.length?'amber':'green'},
+    {n:fmtN(critAlt), k:'Críticas + altas', d:crit?`sendo ${crit} ${crit===1?'crítica':'críticas'}`:'nenhuma crítica', c:crit?'red':critAlt?'amber':'green'},
+    {n:pctPrazo+'%', k:'Dentro do prazo', d:`${noPrazo} de ${comPrazo.length} com SLA`, c:pctPrazo>=80?'green':pctPrazo>=60?'amber':'red'},
+    {n:fmtN(vencidas), k:'Prazo vencido', d:emRisco?`+${emRisco} em risco`:'fora do SLA', c:vencidas?'red':'green'},
+  ];
+
+  // donut por criticidade
+  const dparts=SEV.map(k=>({label:SEV_PT[k], value:bySev[k], var:SEV_VAR[k]}));
+  const dlegend=dparts.map(p=>`<div class="row"><i style="background:var(${p.var})"></i>${p.label}<b>${p.value}</b></div>`).join('');
+
+  // por área
+  const areas=[...new Set(A.map(a=>a.teamNome))].map(nome=>({nome, n:A.filter(a=>a.teamNome===nome).length})).filter(x=>x.n).sort((a,b)=>b.n-a.n);
+  const amax=Math.max(1,...areas.map(a=>a.n));
+  const ebars=areas.map(a=>`<div class="ebar"><span class="lab" title="${esc(a.nome)}">${esc(a.nome)}</span><span class="track"><span class="fill" style="width:${Math.round(a.n/amax*100)}%"></span></span><span class="val">${a.n}</span></div>`).join('') || '<span class="muted">Nenhuma ação em aberto.</span>';
+
+  // top prioridades
+  const risco=a=>a.sev*Math.max(1,a.hosts);
+  const top=A.filter(a=>a.threat==='Critical'||a.threat==='High').sort((a,b)=>risco(b)-risco(a)).slice(0,5);
+  const prio = top.length ? top.map((a,i)=>{
+    const vtag = a.sla_status==='Vencido'?'<span class="ptag venc">Vencido</span>':a.sla_status==='Em risco'?'<span class="ptag risco">Em risco</span>':a.prazo?`<span class="ptag">até ${fmtD(a.prazo)}</span>`:'';
+    return `<div class="p ${a.threat==='Critical'?'crit':''}"><span class="rank">${i+1}</span>
+      <span class="ptitle"><span class="t">${esc(a.titulo)}</span><span class="pmeta">${SEV_PT[a.threat]} · ${esc(a.teamNome)} · ${a.hosts} ${a.hosts===1?'host':'hosts'}${DATA.meta.escopo==='todos'?' · '+esc(a.scanNome):''}</span></span>
+      ${vtag}</div>`;
+  }).join('') : '<div class="muted" style="padding:8px 0">Nenhuma ação crítica ou alta em aberto. 🎉</div>';
+
+  // evolução — frase de tendência
+  const ev=DATA.evolucao||[];
+  let trend='';
+  if(ev.length>=2){
+    const a0=ev[ev.length-2].abertas, a1=ev[ev.length-1].abertas, dif=a1-a0;
+    const corr=ev[ev.length-1].corrigidas||0;
+    const palavra = dif<0?`caiu <b>${Math.abs(dif)}</b>`:dif>0?`subiu <b>${dif}</b>`:'ficou <b>estável</b>';
+    trend=`Entre os dois últimos scans, o total de ações em aberto ${palavra} (de ${a0} para ${a1}). Acumulado de <b>${corr}</b> ${corr===1?'correção confirmada':'correções confirmadas'} no período.`;
+  } else {
+    trend=`Primeiro scan registrado — a evolução aparece quando houver um segundo scan para comparar. Hoje: <b>${A.length}</b> em aberto, <b>${corrigidas}</b> corrigidas.`;
+  }
+
+  $('#execView').innerHTML = `
+    <div class="exec-head">
+      <h2>Panorama de segurança</h2>
+      <div class="sub">${esc(DATA.meta.tarefa)} · ${fmtN(DATA.meta.hostsScan)} hosts analisados · atualizado em ${fmtD(DATA.meta.hoje)}</div>
+    </div>
+    <div class="exec-hero risk-${level}">
+      <div class="dot">${dot}</div>
+      <div><div class="verdict">${verdict}</div><div class="explain">${explain}</div></div>
+    </div>
+    <div class="exec-tiles">
+      ${tiles.map(t=>`<div class="etile ${t.c}"><span class="n">${t.n}</span><span class="k">${t.k}</span><span class="d">${t.d}</span></div>`).join('')}
+    </div>
+    <div class="exec-two">
+      <div class="excard"><h3>Onde está o risco</h3><div class="cap">Ações em aberto por criticidade</div>
+        <div class="donut-wrap">${donut(dparts, A.length)}<div class="dlegend">${dlegend}</div></div></div>
+      <div class="excard"><h3>Estamos no prazo?</h3><div class="cap">Cumprimento de SLA das ações com prazo</div>
+        <div class="gauge-wrap">${gauge(pctPrazo)}<div class="gauge-cap">${noPrazo} de ${comPrazo.length} ações dentro do prazo${vencidas?` · <span style="color:var(--crit)">${vencidas} vencida${vencidas===1?'':'s'}</span>`:''}</div></div></div>
+    </div>
+    <div class="excard"><h3>Carga por área</h3><div class="cap">Quantas ações em aberto cada equipe tem para tratar</div>
+      <div class="ebars">${ebars}</div></div>
+    <div class="excard"><h3>Prioridades do momento</h3><div class="cap">As ações de maior risco a resolver primeiro</div>
+      <div class="prio">${prio}</div></div>
+    <div class="excard"><h3>Como estamos evoluindo</h3>
+      <div class="trendline">${trend}</div></div>`;
+}
+function render(){
+  abertas.length=0;DATA.acoes.filter(a=>a.status!=='Corrigido'&&a.status!=='Falso positivo').forEach(a=>abertas.push(a));
+  kpis();charts();reincidencias();rows();execRender();
+}
+// ---------- login ----------
+function logout(){
+  TOKEN=null; ME=null; try{localStorage.removeItem('vp-token');}catch(e){}
+  $('#userchip').hidden=true; showLogin();
+}
+let LDAP_ON=false;
+async function showLogin(){
+  if (LOGO && LOGO.startsWith('data:')) $('#logo2').src=LOGO; else $('#logo2').hidden=true;
+  try{ LDAP_ON = !!(await (await fetch('/api/public/config')).json()).ldap; }catch(e){ LDAP_ON=false; }
+  if (LDAP_ON){
+    $('#userField').hidden=false; $('#teamField').hidden=true;
+    $('#loginHint').textContent='Use seu usuário e senha de rede (Active Directory).';
+  } else {
+    $('#userField').hidden=true; $('#teamField').hidden=false; $('#loginHint').textContent='';
+    try{
+      const ts=await (await fetch('/api/public/teams')).json();
+      $('#loginTeam').innerHTML=ts.map(t=>`<option value="${esc(t.id)}">${esc(t.nome)}</option>`).join('');
+    }catch(e){}
+  }
+  $('#loginErr').textContent=''; $('#loginOverlay').hidden=false; $('#loginPass').value='';
+}
+$('#loginForm').addEventListener('submit', async e=>{
+  e.preventDefault();
+  $('#loginErr').textContent='';
+  const usuario = LDAP_ON ? $('#loginUser').value.trim() : $('#loginTeam').value;
+  if(!usuario){ $('#loginErr').textContent = LDAP_ON?'Informe o usuário de rede.':'Selecione a equipe.'; return; }
+  try{
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({usuario, senha:$('#loginPass').value})});
+    if(!r.ok){ const d=await r.json().catch(()=>({})); $('#loginErr').textContent=d.detail||'Falha no login.'; return; }
+    const d=await r.json(); TOKEN=d.token; try{localStorage.setItem('vp-token',TOKEN);}catch(_){}
+    $('#loginOverlay').hidden=true; await start();
+  }catch(err){ $('#loginErr').textContent='Não foi possível conectar à API.'; }
+});
+$('#logout').onclick=logout;
+$('#histClose').onclick=()=>$('#histModal').hidden=true;
+$('#histModal').addEventListener('click',e=>{ if(e.target.id==='histModal') $('#histModal').hidden=true; });
+
+let currentTask = null;
+async function loadScans(){
+  try{
+    const sc = await api('/api/scans');
+    const opts = sc.map(s=>`<option value="${esc(s.task)}">${esc(s.task)} · ${s.abertas} abertas</option>`);
+    if(sc.length>1) opts.unshift('<option value="__all__">Todos os scans</option>');
+    $('#scanSel').innerHTML = opts.join('');
+    if(!currentTask || !sc.some(s=>s.task===currentTask)) currentTask = sc.length?sc[0].task:null;
+    $('#scanSel').value = currentTask || (sc.length>1?'__all__':'');
+    $('#scanSel').style.display = sc.length ? '' : 'none';
+  }catch(e){}
+}
+async function loadDashboard(task){
+  DATA = await api('/api/dashboard'+(task?('?task='+encodeURIComponent(task)):''));
+  if(!DATA || !DATA.acoes){ return; }
+  HOJE = parseD(DATA.meta.hoje); normalize();
+  $('#sub').textContent = `${DATA.meta.tarefa} · ${fmtN(DATA.meta.hostsScan)} hosts · ${DATA.meta.total} achados`;
+  $('#asof').textContent = 'Atualizado em ' + fmtD(DATA.meta.hoje);
+  $('#note').textContent = DATA.meta.nota || 'Dados importados automaticamente do OpenVAS via GMP.';
+  $('#foot').textContent = 'Plataforma de gestão de vulnerabilidades · dados importados do OpenVAS; tratativas salvas no banco, com histórico.';
+  setupFilters(); render();
+}
+$('#scanSel').onchange=e=>{ currentTask=e.target.value; loadDashboard(currentTask).catch(err=>toast('Erro: '+err.message)); };
+$('#viewToggle').onclick=()=>{
+  const on=document.body.classList.toggle('exec');
+  $('#viewToggle').textContent = on?'Visão operacional':'Visão executiva';
+  $('#printBtn').hidden = !on;
+};
+$('#printBtn').onclick=()=>window.print();
+let refreshTimer=null;
+async function start(){
+  ME = await api('/api/me');
+  $('#whoName').textContent=ME.nome;
+  if (ME.role==='admin') {
+    $('#whoRole').textContent = 'admin · vê tudo';
+  } else {
+    const eqs = ME.equipes && ME.equipes.length ? ME.equipes : (ME.equipe?[ME.equipe]:[]);
+    const label = eqs.length>2 ? `${eqs.slice(0,2).join(', ')} +${eqs.length-2}` : eqs.join(', ');
+    $('#whoRole').textContent = label || 'equipe';
+    $('#whoRole').title = eqs.join(', ');
+  }
+  $('#userchip').hidden=false; $('#ctrls').hidden=false;
+  await loadScans();
+  await loadDashboard(currentTask==='__all__'?'__all__':currentTask);
+  if(refreshTimer) clearInterval(refreshTimer);
+  refreshTimer=setInterval(()=>{ if(document.activeElement && document.activeElement.classList && document.activeElement.classList.contains('edit')) return; loadDashboard(currentTask).catch(()=>{}); }, 120000);
+}
+function setFavicon(){
+  if(!(LOGO && LOGO.startsWith('data:'))) return;
+  let l=document.querySelector('link[rel="icon"]');
+  if(!l){ l=document.createElement('link'); l.rel='icon'; document.head.appendChild(l); }
+  l.type='image/png'; l.href=LOGO;
+}
+async function boot(){
+  setFavicon();
+  if (LOGO && LOGO.startsWith('data:')) $('#logo').src=LOGO; else $('#logo').hidden=true;
+  if(TOKEN){ try{ await start(); return; }catch(e){} }
+  showLogin();
+}
+boot();
+</script>
+</body>
+</html>

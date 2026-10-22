@@ -1,0 +1,91 @@
+# Configuração do importador (Fase 1).
+# Credenciais do GMP vêm das variáveis de ambiente GMP_USERNAME / GMP_PASSWORD
+# (definidas no .env), não deste arquivo.
+
+gmp:
+  # 'socket' = Greenbone em Docker (Community Containers), que expõe o GMP
+  # pelo socket do gvmd. 'tls' = gvmd exposto por TLS (host/port).
+  type: socket
+  socket_path: /run/gvmd/gvmd.sock
+  # Para TLS, troque type para 'tls' e informe:
+  # host: 127.0.0.1
+  # port: 9390
+
+# Tarefas a importar (nome ou id no gvmd). Vazio = todas as tarefas.
+tasks:
+  - "SCAN - DATACENTER - EXEMPLO"
+
+# Agendamento quando rodando como serviço (--loop).
+schedule:
+  interval_seconds: 3600        # importa de hora em hora
+
+# Contar prazos a partir de 'scan' (data do relatório) ou 'hoje'.
+base_data: hoje
+
+db_path: /app/data/plataforma.db
+output_dir: /app/data
+
+# SLA por severidade (dias).
+sla:
+  Critical: 7
+  High: 30
+  Medium: 90
+  Low: 180
+
+default_team: infra
+# Equipe com papel de administrador (vê e edita tudo; reatribui equipe).
+admin_team: seg
+
+teams:
+  - { id: infra, nome: "Infraestrutura" }
+  - { id: redes, nome: "Telecom" }
+  - { id: dev,   nome: "Desenvolvimento" }
+  - { id: seg,   nome: "Segurança da Informação" }
+
+# Regras de distribuição: avaliadas de cima para baixo; a primeira que casar
+# define a equipe. 'campo' pode ser: nome, familia, produto, so, ip, qualquer.
+rules:
+  - { team: infra, campo: nome,     padrao: "dahua|hikvision|amcrest|camera|câmera|dvr|nvr|Multiple Devices Information Disclosure" }
+  - { team: infra, campo: produto,  padrao: "hp:ilo|intel:amt|idrac|ipmi|apache:http_server|apache:tomcat|openssl|lighttpd|nginx|internet_information_services|openssh|samba" }
+  - { team: dev,   campo: nome,     padrao: "\\bPHP\\b|phpinfo|phpMyAdmin|Cookie|Source Control|SCM|WordPress|jQuery|SQL Injection|Cross-Site|XSS|Cleartext Transmission" }
+  - { team: redes, campo: nome,     padrao: "ICMP|TCP Timestamps|Telnet|SNMP|\\(SSH\\)" }
+  - { team: seg,   campo: familia,  padrao: "SSL and TLS" }
+
+# ---------------------------------------------------------------------------
+# Fase 4 — Autenticação AD/LDAP e notificações no Microsoft Teams
+# ---------------------------------------------------------------------------
+
+# Login pelo Active Directory. Servidor/credenciais vêm do .env (LDAP_*);
+# aqui fica o mapeamento grupo do AD → equipe (e quais grupos são admin).
+# O login só usa o AD quando LDAP_ENABLED=1 no .env; senão, contas locais.
+ldap:
+  # Grupo do AD → área(s) que o membro pode editar. Aceita o DN completo OU só
+  # o nome (CN). O valor pode ser UMA área ou uma LISTA (um grupo que cobre
+  # várias áreas). Aqui o SEC-OPS cobre Infra + Telecom + Segurança da Informação.
+  group_map:
+    "SEC-OPS":   [infra, redes, seg]   # grupo do AD cobrindo as áreas de TI
+    "SEC-DEV":   [dev]
+  # Admin por LOGIN (sAMAccountName): só estes veem e editam tudo (a SI).
+  admin_users:
+    - jsilva
+    - mrocha
+  # (opcional) Admin por grupo, se um dia a SI ganhar um grupo próprio:
+  admin_groups: []
+
+# Notificações no Teams. Ative também NOTIFY_ENABLED no .env (padrão: ligado).
+notifications:
+  enabled: true
+  channel: teams
+  sla_warning_days: 3            # avisa quando faltam N dias para o SLA
+  digest_time: "08:00"          # horário do resumo diário por equipe
+  check_interval_seconds: 1800  # de quanto em quanto o notifier checa o SLA
+  portal_url: "https://vuln.example.local:8443"
+  # URLs dos webhooks de cada canal. Também podem vir do .env
+  # (TEAMS_WEBHOOK_DEFAULT, TEAMS_WEBHOOK_INFRA, TEAMS_WEBHOOK_REDES, ...).
+  webhooks:
+    default: ""                 # canal geral (Segurança) — cole o webhook aqui
+    por_equipe:
+      infra: ""
+      redes: ""
+      dev: ""
+      seg: ""

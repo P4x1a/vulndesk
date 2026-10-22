@@ -1,0 +1,9 @@
+python-gvm>=23.11,<25
+PyYAML>=6.0,<7
+SQLAlchemy>=2.0,<2.1
+fastapi>=0.110,<0.116
+uvicorn[standard]>=0.27,<0.35
+psycopg[binary]>=3.1,<4
+passlib>=1.7,<2
+itsdangerous>=2.1,<3
+ldap3>=2.9,<3
